@@ -146,7 +146,7 @@ def getmagneticdeclination(lat, lon):
 
 def parseargs():
 
-    parser = argparse.ArgumentParser(description="Download maps from ocad")
+    parser = argparse.ArgumentParser(description="Download maps from gokartor")
 
     parser.add_argument("-Z","--zoom",type=zoom_range,help="Zoom: Range 6-15. 15 is the highest resolutions and 6 the lowest.",default=15)
 
