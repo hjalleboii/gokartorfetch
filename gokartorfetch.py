@@ -10,7 +10,7 @@ os.makedirs(tempfolder, exist_ok=True)
 from bs4 import BeautifulSoup
 from datetime import date
 import json
-
+import time
 
 from pyproj import Transformer
 import argparse
@@ -36,6 +36,15 @@ mapcoordinatesystem = "EPSG:3006"
 
 
 
+def get_with_backoff(url, max_retries=5):
+    delay = 1
+    for attempt in range(max_retries):
+        response = requests.get(url)
+        if response.status_code != 429:
+            return response
+        time.sleep(delay)
+        delay *= 2  # exponential backoff
+    raise Exception("Max retries exceeded")
 
 
 def GetLatLonMinMax(lon0,lat0,lon1,lat1):
@@ -51,8 +60,10 @@ def GetTileFileName(layer,level, tX,tY):
 
 def GetAndSaveTile(layer,level, tX,tY):
 
-    response = requests.get(f"https://kartor.gokartor.se/{layer}/{level}/{tY}/{tX}.png")
+    url = f"https://kartor.gokartor.se/{layer}/{level}/{tY}/{tX}.png"
+    response = get_with_backoff(url)
     if  not response.ok:
+        print(f"Failed to fetch {url}    Response: {response.status_code}")
         return -1
     with open(GetTileFileName(layer,level, tX,tY),"wb") as out:
         out.write(response.content)
@@ -109,9 +120,11 @@ def GeneratetMap(tYmax,tYmin,tXmax,tXmin,zoom,layer):
 
     for x in range(tXmin,tXmax+1):
         for y in range(tYmin,tYmax+1):
-            GetAndSaveTile(layer,zoom,x,y)
-            image = Image.open(GetTileFileName(layer,zoom,x,y))
-            export.paste(image,((x-tXmin)*tS,(y-tYmin)*tS,(x-tXmin+1)* tS,(y-tYmin+1)*tS))
+            if GetAndSaveTile(layer,zoom,x,y) == 0:
+                image = Image.open(GetTileFileName(layer,zoom,x,y))
+                export.paste(image,((x-tXmin)*tS,(y-tYmin)*tS,(x-tXmin+1)* tS,(y-tYmin+1)*tS))
+            else: 
+                print("skipping tile x:{x} y:{y}")
     return export
 
 
